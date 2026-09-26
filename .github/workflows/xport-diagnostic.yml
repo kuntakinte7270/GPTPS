@@ -1,0 +1,49 @@
+name: xport diagnostic
+
+# Fork-only diagnostic branch; not intended as an upstream contribution.
+on:
+  push:
+    branches:
+      - diagnose/xport-linux
+
+permissions:
+  contents: read
+
+jobs:
+  repeat-xport:
+    if: github.repository == 'kuntakinte7270/GPTPS'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [release, asan]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Record revision and toolchain
+        run: |
+          git rev-parse HEAD
+          cc --version
+          cmake --version
+      - name: Configure release
+        if: matrix.mode == 'release'
+        run: cmake -S . -B build-xport -DCMAKE_BUILD_TYPE=Release
+      - name: Configure ASan and UBSan
+        if: matrix.mode == 'asan'
+        run: >-
+          cmake -S . -B build-xport -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_C_FLAGS="-fsanitize=address,undefined -fno-sanitize-recover=undefined -g"
+      - name: Build existing transport test only
+        run: cmake --build build-xport --target test_xport --parallel 2
+      - name: Repeat unmodified transport test
+        run: >-
+          ctest --test-dir build-xport -R '^xport$' --no-tests=error
+          --repeat until-fail:100 --timeout 20 --output-on-failure
+      - name: Show final test log
+        if: always()
+        run: |
+          if test -f build-xport/Testing/Temporary/LastTest.log; then
+            cat build-xport/Testing/Temporary/LastTest.log
+          fi

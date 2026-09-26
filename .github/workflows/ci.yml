@@ -9,6 +9,8 @@ permissions:
 
 on:
   push:
+    branches-ignore:
+      - diagnose/xport-linux
   pull_request:
   # A dormant repo's green badge decays into fiction: toolchains, runner images and
   # dependencies move underneath a tree that has not been pushed to in months. The
