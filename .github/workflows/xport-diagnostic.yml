@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        mode: [release, asan]
+        mode: [release, asan, tsan]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -35,12 +35,25 @@ jobs:
         run: >-
           cmake -S . -B build-xport -DCMAKE_BUILD_TYPE=Debug
           -DCMAKE_C_FLAGS="-fsanitize=address,undefined -fno-sanitize-recover=undefined -g"
-      - name: Build existing transport test only
-        run: cmake --build build-xport --target test_xport --parallel 2
+      - name: Configure ThreadSanitizer
+        if: matrix.mode == 'tsan'
+        run: >-
+          cmake -S . -B build-xport -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_C_FLAGS="-fsanitize=thread -g"
+      - name: Build full suite
+        run: cmake --build build-xport --parallel 2
       - name: Repeat unmodified transport test
+        if: matrix.mode != 'tsan'
         run: >-
           ctest --test-dir build-xport -R '^xport$' --no-tests=error
           --repeat until-fail:100 --timeout 20 --output-on-failure
+      - name: Full suite
+        if: matrix.mode != 'tsan'
+        run: ctest --test-dir build-xport --no-tests=error --output-on-failure
+      - name: ThreadSanitizer suite
+        if: matrix.mode == 'tsan'
+        # Match upstream's TSan invocation and benchmark-only exclusion.
+        run: setarch "$(uname -m)" -R ctest --test-dir build-xport --no-tests=error --output-on-failure -E 'bench_pool'
       - name: Show final test log
         if: always()
         run: |
