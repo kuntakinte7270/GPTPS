@@ -15,10 +15,11 @@ the release version and is documented in `include/gptps.h`.
   admitted. Due retries retain a best-effort slot/memory reservation against
   lower-priority work until the following pass. This is not a global event-order
   guarantee: cancellation can still overtake RETRIED for later observers.
-- Clear `started` when parking a bounded retry, so `GPTPS_REMOVE_CANCEL` during
-  its notification does not silently free an item that still owes a terminal
-  event. Regression tests cover notification ordering, cancellation with and
-  without backoff, priority preservation and pending-event buffer overflow.
+- Regression tests cover notification ordering, cancellation with and without
+  backoff, priority preservation and pending-event buffer overflow. Keep the
+  parked attempt's state intact for the existing terminal-event accounting:
+  a body returning `GPTPS_E_CANCELLED`, retried and then removed from its RETRIED
+  callback, must not receive a second cancellation terminal event.
 
 ### Fixed — routing a service through a balancer was a use-after-free
 

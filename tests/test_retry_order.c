@@ -183,7 +183,10 @@ static gptps_status manual_task(gptps_ctx *ctx, void *ud)
 {
     manual_probe *p = ud;
     (void)ctx;
-    return ++p->calls == 1 ? GPTPS_E_TASK : GPTPS_OK;
+    if (++p->calls != 1) return GPTPS_OK;
+    /* Returning E_CANCELLED is distinct from calling gptps_cancel: the engine
+     * may retry it, but its FAILED/E_CANCELLED has already been observed. */
+    return p->remove_on_retry == 2 ? GPTPS_E_CANCELLED : GPTPS_E_TASK;
 }
 
 static gptps_status low_task(gptps_ctx *ctx, void *ud)
@@ -373,6 +376,8 @@ int main(void)
     CHECK(errors == 0);
     manual_case(1, 0, 1);
     manual_case(1, 1, 1);
+    manual_case(2, 0, 1); /* self-returned E_CANCELLED must not close twice */
+    manual_case(2, 1, 1);
     manual_case(0, 0, 1);
     admission_case(0, 1, 1);  /* equal score, already queued: do not stall it */
     admission_case(-10, 1, 1); /* higher-score unrelated work goes first */

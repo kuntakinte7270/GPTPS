@@ -1031,13 +1031,6 @@ static void engine_pass(gptps *e, gptps_pending_ev *pend, int *out_npend,
                     pend[npend].attempt = it->attempt; pend[npend].mem = it->cost.mem_bytes;
                     pend[npend].result = NULL; pend[npend].result_len = 0; ++npend;
                 }
-                /* Attempt N+1 has not run, so this handle has had no terminal event
-                 * yet: the FAILED it just got was not final, and RETRIED is not one.
-                 * Leaving `started` set until step 2 promotes the item meant anything
-                 * that ended it while parked - gptps_unregister_task(REMOVE_CANCEL)
-                 * running inside the RETRIED emit window, or shutdown's final drain -
-                 * hit drain_cancelled's `started` test and freed it in silence. */
-                it->started = 0;
                 fifo_push(&announced, it);   /* joins `delayed` after step 2's scan */
             } else {
                 switch (it->policy.on_failure) {
@@ -1110,10 +1103,9 @@ static void engine_pass(gptps *e, gptps_pending_ev *pend, int *out_npend,
                      * THIS attempt; leaving it set across a re-admission makes the
                      * done-drain's `!it->started` test read attempt N-1's state, so
                      * an item cancelled while sitting in `ready` was freed silently.
-                     * Every re-admission path funnels through `delayed`. Bounded
-                     * retries already clear this when parked, so cancellation
-                     * during their RETRIED delivery also owes a terminal event;
-                     * keep the promotion reset for the other re-admission paths. */
+                     * Every re-admission path - bounded retry, REQUEUE, service
+                     * restart, constraint DEFER - funnels through `delayed`, so this
+                     * is the one place that has to clear it. */
                     cur->started = 0;
                     if (prev) prev->next = nxt; else e->delayed.head = nxt;
                     if (e->delayed.tail == cur) e->delayed.tail = prev;
